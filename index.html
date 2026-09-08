@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FN Shop BR — Loja Fortnite</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="logo"><b>FN</b> SHOP <span>BR</span></div>
+  <nav><a href="#featured">Destaques</a><a href="#daily">Diários</a><a href="#all">Todos</a></nav>
+  <button id="refresh">↻ Atualizar</button>
+</header>
+
+<div class="hero">
+  <div class="hero-copy">
+    <small>FORTNITE ITEM SHOP • PT-BR</small>
+    <h1>O que tem na loja hoje?</h1>
+    <p>Veja skins, gestos, picaretas e muito mais. A loja é atualizada automaticamente.</p>
+  </div>
+  <div class="reset">
+    <small>PRÓXIMA RENOVAÇÃO</small>
+    <strong id="timer">00:00:00</strong>
+    <em id="updated">Conectando...</em>
+  </div>
+</div>
+
+<div class="controls">
+  <input id="search" placeholder="🔎 Buscar skin, gesto, picareta...">
+  <select id="filter"><option value="">Todos os tipos</option><option value="outfit">Skins</option><option value="emote">Gestos</option><option value="pickaxe">Picaretas</option><option value="backpack">Mochilas</option><option value="glider">Asas-deltas</option><option value="wrap">Envelopamentos</option></select>
+  <span id="status">● carregando</span>
+</div>
+
+<main>
+  <section id="featured"><div class="heading"><h2>🔥 Em destaque</h2><span id="featuredCount"></span></div><div class="grid" id="featuredGrid"></div></section>
+  <section id="daily"><div class="heading"><h2>🛍️ Diários</h2><span id="dailyCount"></span></div><div class="grid" id="dailyGrid"></div></section>
+  <section id="all"><div class="heading"><h2>🎮 Todos os itens</h2><span id="allCount"></span></div><div class="grid" id="allGrid"></div></section>
+</main>
+
+<div id="modal" class="modal hidden"><div class="modal-box"><button class="close" id="close">×</button><img id="modalImg"><div><small id="modalType"></small><h2 id="modalName"></h2><p id="modalRarity"></p><strong id="modalPrice"></strong></div></div></div>
+<footer>FN SHOP BR • Projeto independente • Não afiliado à Epic Games</footer>
+<script src="script.js"></script>
+</body>
+</html>
+# FN Shop BR — V2
+
+Versão visual aprimorada do site da loja do Fortnite.
+
+Arquivos:
+- index.html
+- style.css
+- script.js
+
+Abra index.html para testar localmente.
+
+A fonte de dados está configurada para Fortnite-API. APIs públicas podem mudar de formato, exigir autenticação ou ter limites; para produção, é recomendável usar um backend/proxy e manter qualquer chave no servidor.
+
+Projeto independente, não afiliado à Epic Games.
+
+const API="https://fortnite-api.com/v2/shop?language=pt-BR";
+let items=[], allRaw=[];
+const $=id=>document.getElementById(id);
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function typeName(t){const x=(t||"").toLowerCase();return x.includes("outfit")?"SKIN":x.includes("emote")?"GESTO":x.includes("pickaxe")?"PICARETA":x.includes("backpack")?"MOCHILA":x.includes("glider")?"ASA-DELTA":x.includes("wrap")?"ENVOL": "ITEM"}
+function normalize(data){
+ const d=data?.data||data;
+ let arr=d?.entries||d?.shop||[];
+ if(!Array.isArray(arr)) arr=Object.values(arr||{}).flat();
+ return arr.map((e,i)=>{
+  const c=e.brItems?.[0]||e.items?.[0]||e;
+  return {id:c.id||e.offerId||i,name:c.name||e.name||"Item",type:(c.type?.value||c.type||"").toLowerCase(),rarity:c.rarity?.displayValue||c.rarity?.value||c.rarity||"",price:e.finalPrice??e.price??c.price??0,img:c.images?.featured||c.images?.icon||e.image||"",section:e.section||e.category||""};
+ }).filter(x=>x.img);
+}
+function card(x){
+ return `<article class="card" data-id="${esc(x.id)}"><div class="pic"><img loading="lazy" src="${esc(x.img)}" alt="${esc(x.name)}"><span class="tag">${typeName(x.type)}</span></div><div class="body"><div class="name" title="${esc(x.name)}">${esc(x.name)}</div><div class="meta"><span>${esc(x.rarity||"")}</span><span class="price">◉ ${Number(x.price||0).toLocaleString("pt-BR")}</span></div></div></article>`;
+}
+function render(){
+ const q=$("search").value.toLowerCase(), f=$("filter").value;
+ const list=items.filter(x=>(!q||x.name.toLowerCase().includes(q))&&(!f||x.type.includes(f)));
+ // A robust visual fallback: first ~1/3 is featured, remainder daily when API doesn't expose sections.
+ const featured=list.filter(x=>/featured|destaque/i.test(x.section));
+ const top=featured.length?featured:list.slice(0,Math.min(12,list.length));
+ const daily=list.filter(x=>!top.includes(x));
+ fill("featuredGrid",top);fill("dailyGrid",daily.slice(0,24));fill("allGrid",list);
+ $("featuredCount").textContent=top.length+" itens";$("dailyCount").textContent=Math.min(24,daily.length)+" itens";$("allCount").textContent=list.length+" itens";
+ document.querySelectorAll(".card").forEach(c=>c.onclick=()=>openModal(c.dataset.id));
+}
+function fill(id,list){$(id).innerHTML=list.length?list.map(card).join(""):'<div class="empty">Nenhum item encontrado.</div>'}
+async function load(){
+ $("status").textContent="● atualizando...";
+ try{
+  const r=await fetch(API,{cache:"no-store"});if(!r.ok)throw Error();
+  const d=await r.json();items=normalize(d);
+  $("status").textContent=`● ${items.length} itens`;
+  $("updated").textContent="Atualizado "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  render();
+ }catch(e){$("status").textContent="● erro ao conectar";$("allGrid").innerHTML='<div class="empty">Não foi possível carregar a loja. Verifique a conexão ou tente novamente.</div>'}
+}
+function openModal(id){const x=items.find(a=>String(a.id)===String(id));if(!x)return;$("modalImg").src=x.img;$("modalType").textContent=typeName(x.type);$("modalName").textContent=x.name;$("modalRarity").textContent=x.rarity||"Item da loja";$("modalPrice").textContent=`◉ ${Number(x.price||0).toLocaleString("pt-BR")} V-Bucks`;$("modal").classList.remove("hidden")}
+$("close").onclick=()=>$("modal").classList.add("hidden");$("modal").onclick=e=>{if(e.target.id==="modal")$("modal").classList.add("hidden")};
+$("search").oninput=render;$("filter").onchange=render;$("refresh").onclick=load;
+function tick(){const n=new Date(),d=new Date(n);d.setHours(24,0,0,0);let ms=d-n;const h=String(Math.floor(ms/36e5)).padStart(2,"0"),m=String(Math.floor(ms%36e5/6e4)).padStart(2,"0"),s=String(Math.floor(ms%6e4/1e3)).padStart(2,"0");$("timer").textContent=`${h}:${m}:${s}`}
+load();tick();setInterval(tick,1000);setInterval(load,5*60*1000);
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#070a12;color:#f7f8ff;font-family:Arial,Helvetica,sans-serif}header{height:70px;background:#0d1220;border-bottom:1px solid #202a42;display:flex;align-items:center;padding:0 5%;gap:30px;position:sticky;top:0;z-index:20}.logo{font-weight:1000;font-size:20px;letter-spacing:1px}.logo b{background:#7546e8;padding:8px;border-radius:9px}.logo span{color:#9e86ff}nav{display:flex;gap:24px;flex:1}nav a{color:#aeb8ce;text-decoration:none;font-weight:700}button{cursor:pointer;color:#fff;border:1px solid #35415d;background:#151d30;border-radius:9px;padding:9px 14px}.hero{min-height:350px;padding:65px 5%;display:flex;align-items:center;justify-content:space-between;gap:30px;background:radial-gradient(circle at 78% 45%,#372077 0,transparent 36%),linear-gradient(120deg,#10182d,#080b14)}.hero-copy{max-width:720px}.hero small,.reset small{color:#9f8bff;font-weight:900;letter-spacing:1.5px}.hero h1{font-size:clamp(38px,6vw,68px);margin:14px 0 10px;line-height:.98}.hero p{color:#aab4ca;font-size:17px}.reset{min-width:260px;text-align:center;padding:25px;background:#10182a;border:1px solid #34405c;border-radius:18px;box-shadow:0 15px 50px #0006}.reset strong{display:block;font-size:38px;margin:10px 0}.reset em{font-style:normal;color:#78859f;font-size:12px}.controls{padding:16px 5%;display:flex;gap:12px;align-items:center;position:sticky;top:70px;background:#070a12ee;backdrop-filter:blur(10px);z-index:10}.controls input,.controls select{border:1px solid #2c3853;background:#11182a;color:#fff;border-radius:10px;padding:13px}.controls input{flex:1;min-width:180px}.controls #status{font-size:12px;color:#77e0a2;white-space:nowrap}main{padding-bottom:30px}section{padding:28px 5%}.heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.heading h2{font-size:25px;margin:0}.heading span{color:#71809b;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:16px}.card{background:#10172a;border:1px solid #202b43;border-radius:15px;overflow:hidden;cursor:pointer;transition:.2s}.card:hover{transform:translateY(-5px);border-color:#7b5ae6;box-shadow:0 12px 30px #0007}.pic{position:relative}.pic img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:#1a2133}.tag{position:absolute;left:9px;top:9px;background:#080b12cc;border:1px solid #ffffff22;border-radius:7px;padding:5px 7px;font-size:10px;font-weight:900}.body{padding:12px}.name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{display:flex;justify-content:space-between;gap:8px;margin-top:7px;font-size:11px;color:#8491aa}.price{font-weight:900;color:#fff;white-space:nowrap}.empty{color:#71809b;padding:30px 0}.modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;z-index:50;padding:20px}.hidden{display:none}.modal-box{width:min(700px,100%);background:#11182a;border:1px solid #35415d;border-radius:20px;overflow:hidden;position:relative}.modal-box img{width:100%;max-height:480px;object-fit:cover}.modal-box>div:last-child{padding:22px}.modal-box h2{font-size:30px;margin:8px 0}.modal-box strong{font-size:20px}.close{position:absolute;right:12px;top:12px;border:0;background:#000a;font-size:25px;width:40px;height:40px;padding:0}footer{text-align:center;color:#65728c;padding:40px 20px;border-top:1px solid #1b2437}@media(max-width:700px){header{gap:12px}.logo{font-size:15px}nav{display:none}.hero{display:block;padding-top:40px}.reset{margin-top:25px}.controls{top:70px;flex-wrap:wrap}.controls input{width:100%}.controls #status{width:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.card{border-radius:11px}.hero h1{font-size:42px}}
